@@ -55,20 +55,41 @@ document.getElementById('contactForm')?.addEventListener('submit', function(e) {
         return;
     }
 
-    // Simulate form submission
+    // Send email using direct method
     const submitButton = this.querySelector('button[type="submit"]');
     const originalText = submitButton.textContent;
     submitButton.textContent = 'Sending...';
     submitButton.disabled = true;
 
-    // Simulate API call
+    // Create email content
+    const emailContent = `
+Name: ${formData.name}
+Email: ${formData.email}
+Phone: ${formData.phone || 'Not provided'}
+Subject: ${formData.subject}
+
+Message:
+${formData.message}
+
+---
+Sent from MEGA-NAA Ventures Website
+Date: ${new Date().toLocaleString()}
+    `;
+
+    // Create mailto link
+    const mailtoLink = `mailto:naalamiley3@gmail.com?subject=${encodeURIComponent(formData.subject)}&body=${encodeURIComponent(emailContent)}`;
+    
+    // Open email client
+    window.location.href = mailtoLink;
+    
+    // Show notification
     setTimeout(() => {
-        showNotification('Thank you for your message! We will get back to you within 24 hours.', 'success');
-        this.reset();
+        showNotification('Opening your email client... Please send the message to complete.', 'info');
         submitButton.textContent = originalText;
         submitButton.disabled = false;
-    }, 2000);
+    }, 1000);
 });
+
 
 // Notification System
 function showNotification(message, type = 'info') {
@@ -153,60 +174,6 @@ style.textContent = `
     }
 `;
 document.head.appendChild(style);
-
-// Scroll to top button
-const scrollToTopBtn = document.createElement('button');
-scrollToTopBtn.innerHTML = '<i class="fas fa-arrow-up"></i>';
-scrollToTopBtn.className = 'scroll-to-top';
-scrollToTopBtn.style.cssText = `
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    width: 50px;
-    height: 50px;
-    border-radius: 50%;
-    background: #e74c3c;
-    color: white;
-    border: none;
-    cursor: pointer;
-    display: none;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.2rem;
-    box-shadow: 0 5px 15px rgba(231, 76, 60, 0.3);
-    transition: all 0.3s;
-    z-index: 1000;
-`;
-
-document.body.appendChild(scrollToTopBtn);
-
-// Show/hide scroll to top button
-window.addEventListener('scroll', function() {
-    if (window.pageYOffset > 300) {
-        scrollToTopBtn.style.display = 'flex';
-    } else {
-        scrollToTopBtn.style.display = 'none';
-    }
-});
-
-// Scroll to top functionality
-scrollToTopBtn.addEventListener('click', function() {
-    window.scrollTo({
-        top: 0,
-        behavior: 'smooth'
-    });
-});
-
-// Add hover effect
-scrollToTopBtn.addEventListener('mouseenter', function() {
-    this.style.transform = 'scale(1.1)';
-    this.style.backgroundColor = '#c0392b';
-});
-
-scrollToTopBtn.addEventListener('mouseleave', function() {
-    this.style.transform = 'scale(1)';
-    this.style.backgroundColor = '#e74c3c';
-});
 
 // Animate elements on scroll
 const observerOptions = {
@@ -320,3 +287,69 @@ const debouncedScroll = debounce(function() {
 }, 100);
 
 window.addEventListener('scroll', debouncedScroll);
+
+// Mobile Slideshow Functionality
+function initMobileSlideshow() {
+    const slides = document.querySelectorAll('.slide-item');
+    const dots = document.querySelectorAll('.dot');
+    let currentSlide = 0;
+    let slideInterval;
+
+    function showSlide(index) {
+        // Hide all slides
+        slides.forEach(slide => slide.classList.remove('active'));
+        dots.forEach(dot => dot.classList.remove('active'));
+        
+        // Show current slide
+        slides[index].classList.add('active');
+        dots[index].classList.add('active');
+        currentSlide = index;
+    }
+
+    function nextSlide() {
+        currentSlide = (currentSlide + 1) % slides.length;
+        showSlide(currentSlide);
+    }
+
+    function startSlideshow() {
+        slideInterval = setInterval(nextSlide, 3000); // Change slide every 3 seconds
+    }
+
+    function stopSlideshow() {
+        clearInterval(slideInterval);
+    }
+
+    // Initialize slideshow if mobile
+    if (window.innerWidth <= 768 && slides.length > 0) {
+        showSlide(0);
+        startSlideshow();
+
+        // Add click events to dots
+        dots.forEach((dot, index) => {
+            dot.addEventListener('click', () => {
+                stopSlideshow();
+                showSlide(index);
+                startSlideshow();
+            });
+        });
+
+        // Pause on hover
+        const slideshow = document.querySelector('.mobile-slideshow');
+        if (slideshow) {
+            slideshow.addEventListener('mouseenter', stopSlideshow);
+            slideshow.addEventListener('mouseleave', startSlideshow);
+        }
+    }
+}
+
+// Initialize slideshow on page load
+document.addEventListener('DOMContentLoaded', function() {
+    initMobileSlideshow();
+    
+    // Reinitialize on window resize
+    let resizeTimer;
+    window.addEventListener('resize', function() {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(initMobileSlideshow, 250);
+    });
+});
