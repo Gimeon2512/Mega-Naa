@@ -292,8 +292,11 @@ window.addEventListener('scroll', debouncedScroll);
 function initMobileSlideshow() {
     const slides = document.querySelectorAll('.slide-item');
     const dots = document.querySelectorAll('.dot');
+    const slideshow = document.querySelector('.mobile-slideshow');
     let currentSlide = 0;
     let slideInterval;
+    let touchStartX = 0;
+    let touchEndX = 0;
 
     function showSlide(index) {
         // Hide all slides
@@ -311,16 +314,49 @@ function initMobileSlideshow() {
         showSlide(currentSlide);
     }
 
+    function prevSlide() {
+        currentSlide = (currentSlide - 1 + slides.length) % slides.length;
+        showSlide(currentSlide);
+    }
+
     function startSlideshow() {
-        slideInterval = setInterval(nextSlide, 3000); // Change slide every 3 seconds
+        slideInterval = setInterval(nextSlide, 5000); // Change slide every 5 seconds
     }
 
     function stopSlideshow() {
         clearInterval(slideInterval);
     }
 
+    // Touch event handlers for swipe functionality
+    function handleTouchStart(e) {
+        touchStartX = e.touches[0].clientX;
+    }
+
+    function handleTouchMove(e) {
+        touchEndX = e.touches[0].clientX;
+    }
+
+    function handleTouchEnd() {
+        const swipeThreshold = 50; // Minimum swipe distance
+        const swipeDistance = touchEndX - touchStartX;
+        
+        if (Math.abs(swipeDistance) > swipeThreshold) {
+            stopSlideshow();
+            
+            if (swipeDistance > 0) {
+                // Swipe right - go to previous slide
+                prevSlide();
+            } else {
+                // Swipe left - go to next slide
+                nextSlide();
+            }
+            
+            startSlideshow();
+        }
+    }
+
     // Initialize slideshow if mobile
-    if (window.innerWidth <= 768 && slides.length > 0) {
+    if (window.innerWidth <= 768 && slides.length > 0 && slideshow) {
         showSlide(0);
         startSlideshow();
 
@@ -333,12 +369,14 @@ function initMobileSlideshow() {
             });
         });
 
-        // Pause on hover
-        const slideshow = document.querySelector('.mobile-slideshow');
-        if (slideshow) {
-            slideshow.addEventListener('mouseenter', stopSlideshow);
-            slideshow.addEventListener('mouseleave', startSlideshow);
-        }
+        // Add touch event listeners for swipe
+        slideshow.addEventListener('touchstart', handleTouchStart, { passive: true });
+        slideshow.addEventListener('touchmove', handleTouchMove, { passive: true });
+        slideshow.addEventListener('touchend', handleTouchEnd);
+
+        // Pause on hover (for desktop testing)
+        slideshow.addEventListener('mouseenter', stopSlideshow);
+        slideshow.addEventListener('mouseleave', startSlideshow);
     }
 }
 
