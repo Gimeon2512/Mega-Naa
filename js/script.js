@@ -288,38 +288,134 @@ const debouncedScroll = debounce(function() {
 
 window.addEventListener('scroll', debouncedScroll);
 
-// Mobile Slideshow Functionality
-function initMobileSlideshow() {
+// Slideshow Functionality
+function initSlideshow() {
     const slides = document.querySelectorAll('.slide-item');
     const dots = document.querySelectorAll('.dot');
     const slideshow = document.querySelector('.mobile-slideshow');
-    let currentSlide = 0;
+    const track = document.querySelector('.slideshow-track');
+    let currentIndex = 0;
     let slideInterval;
     let touchStartX = 0;
-    let touchEndX = 0;
-
-    function showSlide(index) {
-        // Hide all slides
-        slides.forEach(slide => slide.classList.remove('active'));
-        dots.forEach(dot => dot.classList.remove('active'));
+    let touchStartY = 0;
+    let touchEndY = 0;
+    let isTransitioning = false;
+    
+    // Create infinite carousel by cloning slides
+    function createInfiniteCarousel() {
+        const slidesArray = Array.from(slides);
+        const N = slidesArray.length;
         
-        // Show current slide
-        slides[index].classList.add('active');
-        dots[index].classList.add('active');
-        currentSlide = index;
+        if (N === 0) return slides;
+        
+        // Clones for the end
+        const firstSlideClone1 = slidesArray[0].cloneNode(true);
+        const firstSlideClone2 = slidesArray[1 % N].cloneNode(true);
+        
+        // Clones for the beginning
+        const lastSlideClone1 = slidesArray[(N - 1) % N].cloneNode(true);
+        const lastSlideClone2 = slidesArray[(N - 2 + N) % N].cloneNode(true);
+        
+        // Add clones to track
+        track.appendChild(firstSlideClone1);
+        track.appendChild(firstSlideClone2);
+        
+        track.insertBefore(lastSlideClone1, slidesArray[0]);
+        track.insertBefore(lastSlideClone2, lastSlideClone1);
+        
+        // Update slides collection
+        const allSlides = document.querySelectorAll('.slide-item');
+        return allSlides;
+    }
+    
+    const allSlides = createInfiniteCarousel();
+
+    function showSlide(index, instant = false) {
+        if (isTransitioning && !instant) return;
+        
+        const isMobile = window.innerWidth <= 768;
+        const originalSlideCount = slides.length;
+        
+        if (isMobile) {
+            // Mobile: Show one slide at a time (vertical)
+            currentIndex = index;
+            track.style.transform = ''; // Clean up desktop transform
+            
+            // Handle infinite loop boundaries
+            if (currentIndex < 0) {
+                currentIndex = originalSlideCount - 1;
+            } else if (currentIndex >= originalSlideCount) {
+                currentIndex = 0;
+            }
+            
+            // Update active states
+            allSlides.forEach(slide => slide.classList.remove('active'));
+            dots.forEach(dot => dot.classList.remove('active'));
+            
+            allSlides[currentIndex + 2].classList.add('active'); // +2 because of 2 clones at start
+            dots[currentIndex].classList.add('active');
+            
+        } else {
+            // Desktop: Show 3 slides at a time (horizontal)
+            currentIndex = index;
+            let physicalIndex = currentIndex + 2; // +2 because of 2 clones at start
+            
+            // Set transition
+            if (!instant) {
+                track.style.transition = 'transform 0.5s ease-in-out';
+                isTransitioning = true;
+            } else {
+                track.style.transition = 'none';
+            }
+            
+            // Move the track horizontally
+            const slideWidth = slides[0].offsetWidth + 20; // Include gap
+            const offset = (physicalIndex - 1) * slideWidth; // -1 to center the physicalIndex item
+            track.style.transform = `translateX(-${offset}px)`;
+            
+            // IMPORTANT: Make the middle slide always active
+            const middleSlideIndex = physicalIndex; // Current position is the middle
+            allSlides.forEach((slide, i) => {
+                slide.classList.toggle('active', i === middleSlideIndex);
+            });
+            
+            // Update dots for desktop (map back to original indices)
+            let dotIndex = currentIndex;
+            if (dotIndex < 0) dotIndex = originalSlideCount - 1;
+            if (dotIndex >= originalSlideCount) dotIndex = 0;
+            
+            dots.forEach((dot, i) => {
+                dot.classList.toggle('active', i === dotIndex);
+            });
+            
+            // Handle infinite loop after transition
+            if (!instant) {
+                setTimeout(() => {
+                    isTransitioning = false;
+                    
+                    // Check if we need to reset position for infinite loop
+                    if (physicalIndex <= 1) {
+                        // We're at the clone of the last slide, jump to the real last slide
+                        showSlide(originalSlideCount - 1, true);
+                    } else if (physicalIndex >= originalSlideCount + 2) {
+                        // We're at the clone of the first slide, jump to the real first slide
+                        showSlide(0, true);
+                    }
+                }, 500);
+            }
+        }
     }
 
     function nextSlide() {
-        currentSlide = (currentSlide + 1) % slides.length;
-        showSlide(currentSlide);
+        showSlide(currentIndex + 1);
     }
 
     function prevSlide() {
-        currentSlide = (currentSlide - 1 + slides.length) % slides.length;
-        showSlide(currentSlide);
+        showSlide(currentIndex - 1);
     }
 
     function startSlideshow() {
+        clearInterval(slideInterval);
         slideInterval = setInterval(nextSlide, 5000); // Change slide every 5 seconds
     }
 
@@ -330,20 +426,26 @@ function initMobileSlideshow() {
     // Touch event handlers for swipe functionality
     function handleTouchStart(e) {
         touchStartX = e.touches[0].clientX;
+        touchStartY = e.touches[0].clientY;
+        touchEndX = touchStartX; // Reset end to start so a simple tap = 0 distance
+        touchEndY = touchStartY;
     }
 
     function handleTouchMove(e) {
         touchEndX = e.touches[0].clientX;
+        touchEndY = e.touches[0].clientY;
     }
 
     function handleTouchEnd() {
         const swipeThreshold = 50; // Minimum swipe distance
-        const swipeDistance = touchEndX - touchStartX;
+        const diffX = touchEndX - touchStartX;
+        const diffY = touchEndY - touchStartY;
         
-        if (Math.abs(swipeDistance) > swipeThreshold) {
+        // Only trigger if horizontal swipe is greater than vertical swipe AND exceeds threshold
+        if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > swipeThreshold) {
             stopSlideshow();
             
-            if (swipeDistance > 0) {
+            if (diffX > 0) {
                 // Swipe right - go to previous slide
                 prevSlide();
             } else {
@@ -353,13 +455,16 @@ function initMobileSlideshow() {
             
             startSlideshow();
         }
+        
+        // Reset touch coordinates
+        touchStartX = 0;
+        touchEndX = 0;
+        touchStartY = 0;
+        touchEndY = 0;
     }
 
-    // Initialize slideshow if mobile
-    if (window.innerWidth <= 768 && slides.length > 0 && slideshow) {
-        showSlide(0);
-        startSlideshow();
-
+    // Initialize slideshow for all devices
+    if (slides.length > 0 && slideshow) {
         // Add click events to dots
         dots.forEach((dot, index) => {
             dot.addEventListener('click', () => {
@@ -369,25 +474,44 @@ function initMobileSlideshow() {
             });
         });
 
-        // Add touch event listeners for swipe
+        // Add touch event listeners for swipe (mobile)
         slideshow.addEventListener('touchstart', handleTouchStart, { passive: true });
         slideshow.addEventListener('touchmove', handleTouchMove, { passive: true });
         slideshow.addEventListener('touchend', handleTouchEnd);
 
-        // Pause on hover (for desktop testing)
-        slideshow.addEventListener('mouseenter', stopSlideshow);
-        slideshow.addEventListener('mouseleave', startSlideshow);
+        // Pause on hover (desktop only to prevent mobile sticky hover states)
+        slideshow.addEventListener('mouseenter', () => {
+            if (window.innerWidth > 768) stopSlideshow();
+        });
+        slideshow.addEventListener('mouseleave', () => {
+            if (window.innerWidth > 768) startSlideshow();
+        });
+
+        // Add keyboard navigation (desktop)
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'ArrowLeft') {
+                stopSlideshow();
+                prevSlide();
+                startSlideshow();
+            } else if (e.key === 'ArrowRight') {
+                stopSlideshow();
+                nextSlide();
+                startSlideshow();
+            }
+        });
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            showSlide(currentIndex);
+        });
+        
+        // Initialize the carousel at the first real slide (position 1, accounting for clone)
+        showSlide(0, true);
+        startSlideshow();
     }
 }
 
 // Initialize slideshow on page load
 document.addEventListener('DOMContentLoaded', function() {
-    initMobileSlideshow();
-    
-    // Reinitialize on window resize
-    let resizeTimer;
-    window.addEventListener('resize', function() {
-        clearTimeout(resizeTimer);
-        resizeTimer = setTimeout(initMobileSlideshow, 250);
-    });
+    initSlideshow();
 });
